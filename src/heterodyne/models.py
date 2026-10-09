@@ -100,6 +100,45 @@ class Component:
         return np.full(f.shape, float(value))
 
 
+class Attenuator(Component):
+    """Cable/connector insertion loss, expressed as a positive loss in dB."""
+
+    def __init__(self, name, loss_db, *, temperature_k=290.0,
+                 operating_band_hz=None, ideal_linear=False, iip3_dbm=None,
+                 oip3_dbm=None, input_p1db_dbm=None, output_p1db_dbm=None,
+                 max_safe_input_dbm=None, provenance=None):
+        if isinstance(loss_db, FrequencyTable):
+            if loss_db.unit != 'dB':
+                raise ValueError("Attenuator loss requires dB")
+            values = loss_db.values
+            gain = FrequencyTable(loss_db.frequency_hz.copy(), -values,
+                                  'dB', loss_db.provenance)
+        else:
+            if loss_db is None or np.ndim(loss_db) != 0:
+                raise ValueError("Loss must be a scalar or FrequencyTable")
+            values = float(loss_db)
+            gain = -values
+        if not np.all(np.isfinite(values)) or np.any(np.asarray(values) < 0):
+            raise ValueError("Attenuator loss must be finite and nonnegative")
+        if not isinstance(ideal_linear, bool):
+            raise ValueError("ideal_linear must be a boolean")
+        if ideal_linear and any(v is not None for v in
+                                (iip3_dbm, oip3_dbm, input_p1db_dbm, output_p1db_dbm)):
+            raise ValueError("Ideal-linear assumption conflicts with supplied linearity limits")
+        self.loss_db = loss_db
+        self.ideal_linear = ideal_linear
+        metadata = dict(provenance or {})
+        source = metadata.get('loss_db', loss_db.provenance if isinstance(loss_db, FrequencyTable)
+                              else 'user assumption')
+        metadata.setdefault('loss_db', source)
+        metadata.setdefault('gain_db', source)
+        super().__init__(name, gain, temperature_k=temperature_k,
+                         operating_band_hz=operating_band_hz, kind='passive',
+                         iip3_dbm=iip3_dbm, oip3_dbm=oip3_dbm,
+                         input_p1db_dbm=input_p1db_dbm, output_p1db_dbm=output_p1db_dbm,
+                         max_safe_input_dbm=max_safe_input_dbm, provenance=metadata)
+
+
 @dataclass
 class Mixer(Component):
     lo_hz: float = 0.0

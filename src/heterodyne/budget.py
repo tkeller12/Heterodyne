@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .models import Chain, FrequencyTable, IQConversion, Mixer, OperatingState
+from .models import Attenuator, Chain, FrequencyTable, IQConversion, Mixer, OperatingState
 
 K_B = 1.380649e-23
 T_REF = 290.0
@@ -188,8 +188,13 @@ def _analyze(chain, frequency_hz, input_power_dbm, state):
             # At P1dB actual output is input + small-signal gain - 1 dB.
             p1 = c.evaluate("output_p1db_dbm", local) - gain + 1
         safe = c.evaluate("max_safe_input_dbm", local)
-        ip3_complete &= bool(np.all(np.isfinite(ip3)))
-        p1_complete &= bool(np.all(np.isfinite(p1)))
+        ideal = isinstance(c, Attenuator) and c.ideal_linear
+        if ideal:
+            ip3 = np.full_like(f, np.inf)
+            p1 = np.full_like(f, np.inf)
+            assumptions.append(f"{c.name}: explicitly ideal linear; no added distortion or compression; safe power is independent")
+        ip3_complete &= ideal or bool(np.all(np.isfinite(ip3)))
+        p1_complete &= ideal or bool(np.all(np.isfinite(p1)))
         safe_complete &= bool(np.all(np.isfinite(safe)))
         inverse_ip3 += preceding / 10 ** (ip3 / 10)
         compression = np.minimum(compression, p1 - gain_total)
@@ -294,7 +299,8 @@ def analyze_receiver(chain, frequency_hz, *, input_power_dbm=-100.0,
         r.assumptions.append("IM3 uses equal tones and a small-signal reciprocal-power IP3 cascade; tone phases are not modeled")
     if r.completeness['compression']:
         limits = np.stack([s['input_p1db_dbm'] - (s['cumulative_gain_db'] - s['gain_db']) for s in r.stages])
-        a['compression_limiting_stage_index'] = np.argmin(limits, axis=0)
+        a['compression_limiting_stage_index'] = np.where(
+            np.isfinite(np.min(limits, axis=0)), np.argmin(limits, axis=0), np.nan)
     return r
 
 

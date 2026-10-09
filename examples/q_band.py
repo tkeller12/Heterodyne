@@ -1,6 +1,6 @@
 """Illustrative specifications only: these are not hardware recommendations."""
 import numpy as np
-from heterodyne import Component, FrequencyTable, Chain, Mixer, OperatingState
+from heterodyne import Component, Attenuator, FrequencyTable, Chain, Mixer, OperatingState
 from heterodyne import analyze_receiver, analyze_transmitter, analyze_leakage
 
 
@@ -9,6 +9,8 @@ def main():
     band = (33e9, 35e9)
     assumed = {'all': 'Illustrative user assumptions; replace with datasheet values'}
     rx = Chain([
+        Attenuator('receiver_cable_connectors', 1.0, ideal_linear=True,
+                   operating_band_hz=band, provenance=assumed),
         Component('receive_switch', -1.5, kind='switch', operating_band_hz=band,
                   state_gain_db={'transmit': -50}, iip3_dbm=60,
                   input_p1db_dbm=30, max_safe_input_dbm=35, provenance=assumed),
@@ -23,7 +25,9 @@ def main():
                   operating_band_hz=(0.1e9, 2e9), provenance=assumed),
     ], 'Q-band receiver')
     tx = Chain([Component('power_amplifier', 30, input_p1db_dbm=5,
-                          operating_band_hz=band, provenance=assumed)], 'Q-band transmitter')
+                          operating_band_hz=band, provenance=assumed),
+                Attenuator('transmitter_cable_connectors', 1.5, ideal_linear=True,
+                           operating_band_hz=band, provenance=assumed)], 'Q-band transmitter')
     coupling = Chain([Component('circulator_coupling', -1, isolation_db=30,
                                kind='passive', provenance=assumed)])
     receiver = analyze_receiver(rx, f, bandwidth_hz=20e6, input_power_dbm=-90,

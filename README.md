@@ -56,6 +56,38 @@ to three decimal places while the numerical result arrays retain full precision.
 
 ## Specifications and frequency conversion
 
+### Cable and connector losses
+
+Use `Attenuator` with **positive** total insertion loss in dB:
+
+```python
+from heterodyne import Attenuator, FrequencyTable
+
+cable = Attenuator("input_cable_connectors", 1.5, temperature_k=290,
+                   ideal_linear=True,
+                   provenance={"loss_db": "Measured cable and connector loss"})
+frequency_loss = Attenuator("output_cable", FrequencyTable(
+    [33e9, 35e9], [1.0, 1.4], "dB", "Datasheet insertion loss"))
+```
+
+Insert these components at their physical positions in any chain. Loss before
+the first amplifier directly increases receiver noise figure at 290 K; loss
+after amplification has a smaller noise contribution. Loss reduces delivered
+transmitter power and changes downstream stage power and compression headroom.
+Thermal noise is derived from loss and the supplied temperature, rather than a
+separate noise-figure specification. Model sections at different temperatures
+as separate attenuators. Tables use the local input frequency and reject
+extrapolation; scalar losses may be bounded with `operating_band_hz`.
+
+By default, missing attenuator IP3, P1dB and safe-input power remain unknown.
+`ideal_linear=True` explicitly assumes no added distortion or compression and
+records this assumption in reports. It keeps downstream IP3 and compression
+calculations available without inventing finite cable limits. It cannot be
+combined with supplied IP3 or P1dB limits. Safe-input power remains independent:
+set `max_safe_input_dbm` when known, even for an ideal-linear attenuator. Reports
+use `+inf` for explicitly unlimited modeled linearity and `unknown` for missing
+specifications. No limiting stage is assigned to an entirely ideal-linear chain.
+
 All frequencies and bandwidths are in Hz, temperatures in kelvin, power in dBm,
 and gain, isolation and noise figure in dB. Specify a positive isolation; gain
 for a loss is negative. Components support scalar specifications or a
